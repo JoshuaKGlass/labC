@@ -51,7 +51,7 @@ def add_business():
             "reviews": {},
         }
         new_business_id = businesses.insert_one(new_business)
-        new_business_link = "http://localhost:500/api/v1.0/businesses/" + str(new_business_id.inserted_id)
+        new_business_link = "http://127.0.0.1:5000/api/v1.0/businesses/" + str(new_business_id.inserted_id)
         return make_response(jsonify({"url": new_business_link}), 201)
     else:
         return make_response(jsonify({"error": "Missing form data"}), 404)
@@ -68,7 +68,7 @@ def edit_business(id):
              }
         })
         if result.matched_count == 1:
-            edit_business_link = "http://localhost:500/api/v1.0/businesses/" + id
+            edit_business_link = "http://127.0.0.1:5000/api/v1.0/businesses/" + id
             return make_response(jsonify({"url": edit_business_link}), 200)
         else:
             return make_response(jsonify({"error": "Invalid business ID"}), 404)
@@ -94,7 +94,8 @@ def add_new_review(id):
         "stars": request.form["stars"]
     }
 
-    new_review_link = "http://localhost:500/api/v1.0/businesses/" + id + "/reviews/" + str(new_review["_id"])
+    businesses.update_one({"_id": ObjectId(id)}, {"$push": {"reviews": new_review}})
+    new_review_link = "http://127.0.0.1:5000/api/v1.0/businesses/" + id + "/reviews/" + str(new_review["_id"])
 
     return make_response(jsonify({"url": new_review_link}), 201)
 
@@ -103,26 +104,30 @@ def add_new_review(id):
 def fetch_all_reviews(id):
     data_to_return = []
     business = businesses.find_one(
-        {"_id": ObjectId(id),
-         "reviews": 1, "_id": 0})
+        {'_id': ObjectId(id)},
+        {"reviews": 1, "_id": 0})
+
     for review in business["reviews"]:
         review["_id"] = str(review["_id"])
         data_to_return.append(review)
+
     return make_response(jsonify(data_to_return), 200)
 
 
-@app.route("/api/v1.0/businesses/<bid>/reviews/<rid>", methods=["GET"])
+@app.route("/api/v1.0/businesses/<string:bid>/reviews/<string:rid>", methods=["GET"])
 def fetch_one_review(bid, rid):
     business = businesses.find_one(
         {"reviews._id": ObjectId(rid)},
         {"_id": 0, "reviews.$": 1})
+
     if business is None:
         return make_response(jsonify({"error": "Invalid ID or review ID"}), 404)
+
     business["reviews"][0]["_id"] = str(business["reviews"][0]["_id"])
     return make_response(jsonify(business["reviews"][0]), 200)
 
 
-@app.route("/api/v1.0/businesses/<bid>/reviews/<rid>", methods=["PUT"])
+@app.route("/api/v1.0/businesses/<string:bid>/reviews/<string:rid>", methods=["PUT"])
 def edit_review(bid, rid):
     edited_review = {
         "reviews.$.username": request.form["username"],
@@ -131,8 +136,17 @@ def edit_review(bid, rid):
     }
 
     businesses.update_one({"reviews._id": ObjectId(rid)}, {"$set": edited_review})
-    edit_review_url = "http://localhost:5000/api/v1.0/businesses/" + bid + "/reviews/" + rid
+    edit_review_url = "http://127.0.0.1:5000/api/v1.0/businesses/" + bid + "/reviews/" + rid
     return make_response(jsonify({"url": edit_review_url}), 200)
+
+
+@app.route("/api/v1.0/businesses/<bid>/reviews/<rid>", methods=["DELETE"])
+def delete_review(bid, rid):
+    businesses.update_one(
+        {"_id": ObjectId(bid)},
+        {"$pull": {"reviews":
+                       {"_id": ObjectId(rid)}}})
+    return make_response(jsonify({}), 204)
 
 
 if __name__ == "__main__":
