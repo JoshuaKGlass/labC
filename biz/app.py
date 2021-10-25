@@ -1,12 +1,49 @@
 from flask import Flask, request, jsonify, make_response
 from pymongo import MongoClient
 from bson import ObjectId
+import jwt
+import datetime
+from functools import wraps
 
 app = Flask(__name__)
+app.config["SECRET_KEY"] = "mysecret"
 
 client = MongoClient("mongodb://127.0.0.1:27017")
 db = client.bizDB
 businesses = db.biz
+
+
+def jwt_required(func):
+    @wraps(func)
+    def jwt_required_wrapper(*args, **kwargs):
+        token = request.args.get("token")
+        # token = None
+        # if 'x-access-token' in request.headers:
+        #     token = request.headers['x-access-token']
+
+        if not token:
+            return jsonify({"message": "Token is missing"}), 401
+        try:
+            data = jwt.decode(token, app.config['SECRET_KEY'])
+        except:
+            return jsonify({"message": "Token is invalid"}), 401
+
+        return func(*args, **kwargs)
+
+    return jwt_required_wrapper
+
+
+@app.route("/api/v1.0/login", methods=["GET"])
+def login():
+    auth = request.authorization
+    if auth and auth.password == "password":
+        token = jwt.encode(
+            {'user': auth.username,
+             'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=30)},
+            app.config['SECRET_KEY'])
+        return jsonify({'token': token})  # token.decode AttributeError: 'str' object has no attribute 'decode'
+
+    return make_response("Could not verify", 401, {"WWW-Authenticate": "Basic realm = 'Login required'"})
 
 
 @app.route("/api/v1.0/businesses", methods=["GET"])
@@ -30,6 +67,7 @@ def show_all_businesses():
 
 # TODO random string is 24 characters and return proper error
 @app.route("/api/v1.0/businesses/<string:id>", methods=["GET"])
+@jwt_required
 def show_one_business(id):
     business = businesses.find_one({'_id': ObjectId(id)})
     if business is not None:
@@ -48,7 +86,7 @@ def add_business():
             "name": request.form["name"],
             "town": request.form["town"],
             "rating": request.form["rating"],
-            "reviews": {},
+            "reviews": [],
         }
         new_business_id = businesses.insert_one(new_business)
         new_business_link = "http://127.0.0.1:5000/api/v1.0/businesses/" + str(new_business_id.inserted_id)
@@ -60,13 +98,13 @@ def add_business():
 @app.route("/api/v1.0/businesses/<string:id>", methods=["PUT"])
 def edit_business(id):
     if "name" in request.form and "town" in request.form and "rating" in request.form:
-        result = businesses.update_one({
+        result = businesses.update_one(
             {"_id": ObjectId(id)},
             {"$set": {"name": request.form["name"],
                       "town": request.form["town"],
                       "rating": request.form["rating"]}
-             }
-        })
+
+             })
         if result.matched_count == 1:
             edit_business_link = "http://127.0.0.1:5000/api/v1.0/businesses/" + id
             return make_response(jsonify({"url": edit_business_link}), 200)
