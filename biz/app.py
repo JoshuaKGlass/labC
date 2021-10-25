@@ -16,15 +16,15 @@ businesses = db.biz
 def jwt_required(func):
     @wraps(func)
     def jwt_required_wrapper(*args, **kwargs):
-        token = request.args.get("token")
-        # token = None
-        # if 'x-access-token' in request.headers:
-        #     token = request.headers['x-access-token']
+        # token = request.args.get("token")
+        token = None
+        if 'x-access-token' in request.headers:
+            token = request.headers['x-access-token']
 
         if not token:
             return jsonify({"message": "Token is missing"}), 401
         try:
-            data = jwt.decode(token, app.config['SECRET_KEY'])
+            data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])  # https://pypi.org/project/PyJWT/
         except:
             return jsonify({"message": "Token is invalid"}), 401
 
