@@ -9,10 +9,9 @@ app = Flask(__name__)
 app.config["SECRET_KEY"] = "mysecret"
 
 client = MongoClient("mongodb://127.0.0.1:27017")
-db = client.yelpDB
-businesses = db.businesses
+db = client.bizDB
+businesses = db.biz
 
-# TODO make modifcations to add new rview and edit review
 
 def jwt_required(func):
     @wraps(func)
@@ -61,8 +60,6 @@ def show_all_businesses():
         business['_id'] = str(business['_id'])
         for review in business['reviews']:
             review['_id'] = str(review['_id'])
-        for tip in business['tips']:
-            tip['_id'] = str(tip['_id'])
         data_to_return.append(business)
 
     return make_response(jsonify(data_to_return), 200)
@@ -77,8 +74,6 @@ def show_one_business(id):
         business['_id'] = str(business['_id'])
         for review in business['reviews']:
             review['_id'] = str(review['_id'])
-        for tip in business['tips']:
-            tip['_id'] = str(tip['_id'])
         return make_response(jsonify(business), 200)
     else:
         return make_response(jsonify({"error": "Invalid business ID"}), 404)
@@ -86,12 +81,12 @@ def show_one_business(id):
 
 @app.route("/api/v1.0/businesses", methods=["POST"])
 def add_business():
-    if "name" in request.form and "city" in request.form and "stars" in request.form:
+    if "name" in request.form and "town" in request.form and "rating" in request.form:
         new_business = {
             "name": request.form["name"],
-            "city": request.form["city"],
-            "stars": request.form["stars"],
-            "reviews": [], "tips":[]
+            "town": request.form["town"],
+            "rating": request.form["rating"],
+            "reviews": [],
         }
         new_business_id = businesses.insert_one(new_business)
         new_business_link = "http://127.0.0.1:5000/api/v1.0/businesses/" + str(new_business_id.inserted_id)
@@ -102,12 +97,12 @@ def add_business():
 
 @app.route("/api/v1.0/businesses/<string:id>", methods=["PUT"])
 def edit_business(id):
-    if "name" in request.form and "city" in request.form and "stars" in request.form:
+    if "name" in request.form and "town" in request.form and "rating" in request.form:
         result = businesses.update_one(
             {"_id": ObjectId(id)},
             {"$set": {"name": request.form["name"],
-                      "city": request.form["city"],
-                      "stars": request.form["stars"]}
+                      "town": request.form["town"],
+                      "rating": request.form["rating"]}
 
              })
         if result.matched_count == 1:
